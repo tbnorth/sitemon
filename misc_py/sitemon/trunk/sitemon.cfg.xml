@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+
+<!-- sitemon.cfg.xml $Id$
+     Author: Terry Brown
+     Created: Mon Aug 20 2007
+-->
+
+<sites>
+
+  <site name='Geissler landuse application generator'
+	href='http://gisdata.nrri.umn.edu/duluthtwpstormrpt/parc.py?pin=315-0020-02520&amp;submit=Generate+my+application'>
+    <expect><![CDATA[
+    Ground moraine 5-15 ft relief
+    ]]>
+    </expect>
+    <reject>Size of colour table</reject>
+  </site>
+  <site name='MNConserve: LCCMR intranet'
+	href='http://gisdata.nrri.umn.edu/MNConserve/'>
+    <expect>MNConserve intranet site</expect>
+  </site>
+  <site name='MNMammals'
+	href='http://gisdata.nrri.umn.edu/MNMammals/Genus/Canis/Species/latrans/view/spp'>
+    <expect>Coyotes</expect>
+  </site>
+  <site name='GIS Lab. page' href='http://gisdata.nrri.umn.edu/'>
+    <expect>Natural Resources Geographic Information Systems</expect>
+  </site>
+  <site name='GLEI public' href='http://glei.nrri.umn.edu/default/'>
+    <expect>margins of the Great Lakes</expect>
+  </site>
+  <site name='EaGLe public' href='http://eagle.nrri.umn.edu/pubdefault.htm'>
+    <expect>Great Lakes (EaGLe) Coastal</expect>
+  </site>
+<!--
+  <site name='GLEI database'
+	href='https://glei.nrri.umn.edu/gleidb/gdb_main.php'>
+    <expect>GLEI database main menu</expect>
+  </site>
+-->
+</sites>
