@@ -10,9 +10,11 @@
 import sys
 import cgi
 import cgitb; cgitb.enable()
-import urllib
+import urllib2
+import httplib2
 import time
 import xml.etree.ElementTree as etree 
+import smtplib
 
 SUB = etree.SubElement
 ELE = etree.Element
@@ -49,19 +51,34 @@ sitelist = ElementById(page, 'sitelist')
 form = cgi.FieldStorage()
 chklist = etree.parse(form.getfirst('conf'))
 
-class MyOpener(urllib.FancyURLopener):
-    def __init__(self):
-        urllib.FancyURLopener.__init__(self, None, user='nrri\\tbrown')
-    def prompt_user_passwd(self, host, realm):
-        return 'MtZer0Here'
+# class MyOpener(urllib.FancyURLopener):
+#     def __init__(self):
+#         urllib.FancyURLopener.__init__(self, None, user='nrri\\tbrown')
+#     def prompt_user_passwd(self, host, realm):
+#         return 'MtZer0Here'
+# 
+# urllib._urlopener = MyOpener()
 
-urllib._urlopener = MyOpener()
+# Create an OpenerDirector with support for Basic HTTP Authentication...
+auth_handler = urllib2.HTTPPasswordMgrWithDefaultRealm()
+U, P = 'nrri\\tbrown', 'MtZer0Here'
+auth_handler.add_password(None, 'https://gisdata.nrri.umn.edu', U, P)
+auth_handler.add_password(None, 'https://glei.nrri.umn.edu', U, P)
+auth_handler.add_password(None, 'https://eagle.nrri.umn.edu', U, P)
+opener = urllib2.build_opener(auth_handler)
+# ...and install it globally so it can be used with urlopen.
+urllib2.install_opener(opener)
+
+h = httplib2.Http(".cache")
+h.add_credentials(U, P)
+
 
 for i in chklist.findall('site'):
 
     # try to retrieve
     start = time.time()
-    data = urllib.urlopen(i.get('href')).read()
+    # data = urllib2.urlopen(i.get('href')).read()
+    resp, data = h.request(i.get('href'), "GET")
     elapsed = time.time() - start
     # what to look for
     status = 'Good'
@@ -98,5 +115,10 @@ for i in chklist.findall('site'):
         td = SUB(SUB(sitelist, 'tr'), 'td', colspan = '2')
         pre = SUB(td, 'pre')
         pre.text = errlog
+
+server = smtplib.SMTP('tyr.nrri.umn.edu')
+server.set_debuglevel(1)
+server.sendmail('tbrown@nrri.umn.edu', 'tbrown@nrri.umn.edu', 'Subject: test 2\n\nbad bews')
+server.quit()
     
 etree.ElementTree(page).write(sys.stdout)
