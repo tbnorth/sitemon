@@ -6,9 +6,11 @@
 -->
 
 <sites>
-
+  <email>tbrown@nrri.umn.edu</email>
+  <url>http://gisdata.nrri.umn.edu/status</url>
   <site name='Geissler landuse application generator'
 	href='http://gisdata.nrri.umn.edu/duluthtwpstormrpt/parc.py?pin=315-0020-02520&amp;submit=Generate+my+application'>
+    <email>gsjerven@nrri.umn.edu</email>
     <expect><![CDATA[
     Ground moraine 5-15 ft relief
     ]]>
@@ -24,6 +26,7 @@
     <expect>Coyotes</expect>
   </site>
   <site name='GIS Lab. page' href='http://gisdata.nrri.umn.edu/'>
+    <email>pmeysemb@nrri.umn.edu</email>
     <expect>Natural Resources Geographic Information Systems</expect>
   </site>
   <site name='GLEI public' href='http://glei.nrri.umn.edu/default/'>
@@ -32,10 +35,12 @@
   <site name='EaGLe public' href='http://eagle.nrri.umn.edu/pubdefault.htm'>
     <expect>Great Lakes (EaGLe) Coastal</expect>
   </site>
-<!--
   <site name='GLEI database'
 	href='https://glei.nrri.umn.edu/gleidb/gdb_main.php'>
     <expect>GLEI database main menu</expect>
   </site>
--->
+  <site name='EaGLe intranet'
+	href='http://eagle.nrri.umn.edu/pubdefault.htm'>
+    <expect>Great Lakes (EaGLe) Coastal</expect>
+  </site>
 </sites>

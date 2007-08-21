@@ -7,90 +7,73 @@
 # Author: Terry Brown
 # Created: Mon Aug 20 2007
 
-import sys
+import sys, os
 import cgi
 import cgitb; cgitb.enable()
-import urllib2
 import httplib2
 import time
 import xml.etree.ElementTree as etree 
-import smtplib
 
-SUB = etree.SubElement
-ELE = etree.Element
-
-template = """
-<html><head><title>SiteMon website monitor</title>
-<style>
+templatetop = """<html lang="en"><head><title>SiteMon website monitor</title>
+<style type="text/css" >
 tr * { padding: 0.25ex; }
 pre { margin: 1ex; border: solid #808080 2px; background: #f0e0a0; }
+* { font-family: sans-serif; }
 </style>
 </head>
-<body>
+<body><table id="sitelist">
+<tr><th>Site</th><th>Status</th><th>Time (sec.)</th></tr>"""
 
-<p>Updated <span id='updated'/></p>
-
-<table id="sitelist">
-<tr><th>Site</th><th>Status</th><th>Time (sec.)</th></tr>
+templatebot = """
 </table>
+
+<p>Updated %(updated)s</p>
+
 <p>Hover over a site name to see the target text</p>
 </body></html>
 """
 
-def ElementById(ele, Id):
-    for i in ele.getiterator():
-        if i.get('id') == Id: return i
-    return None
+def emit(txt):
+    sys.stdout.write(txt+'\n')
+    sys.stdout.flush()
 
-print 'Content-type: text/html\n'
+emit('Content-type: text/html\n')
+emit('''<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">''')
 
-page = etree.XML(template)
-ElementById(page, 'updated').text = time.asctime()
+emit(templatetop % {'updated': time.asctime()})
 
-sitelist = ElementById(page, 'sitelist')
 form = cgi.FieldStorage()
-chklist = etree.parse(form.getfirst('conf'))
+conf = form.getfirst('conf')
+mode = form.getfirst('mode') or 'unspecified'
+if not conf: conf = sys.argv[1]
+chklist = etree.parse(conf)
 
-# class MyOpener(urllib.FancyURLopener):
-#     def __init__(self):
-#         urllib.FancyURLopener.__init__(self, None, user='nrri\\tbrown')
-#     def prompt_user_passwd(self, host, realm):
-#         return 'MtZer0Here'
-# 
-# urllib._urlopener = MyOpener()
-
-# Create an OpenerDirector with support for Basic HTTP Authentication...
-auth_handler = urllib2.HTTPPasswordMgrWithDefaultRealm()
 U, P = 'nrri\\tbrown', 'MtZer0Here'
-auth_handler.add_password(None, 'https://gisdata.nrri.umn.edu', U, P)
-auth_handler.add_password(None, 'https://glei.nrri.umn.edu', U, P)
-auth_handler.add_password(None, 'https://eagle.nrri.umn.edu', U, P)
-opener = urllib2.build_opener(auth_handler)
-# ...and install it globally so it can be used with urlopen.
-urllib2.install_opener(opener)
-
 h = httplib2.Http(".cache")
 h.add_credentials(U, P)
 
+errmail = {}  # email to whom it may consern
 
-for i in chklist.findall('site'):
+timestamp = time.asctime()
+
+for site in chklist.findall('site'):
 
     # try to retrieve
     start = time.time()
-    # data = urllib2.urlopen(i.get('href')).read()
-    resp, data = h.request(i.get('href'), "GET")
+    resp, data = h.request(site.get('href'), "GET")
     elapsed = time.time() - start
     # what to look for
     status = 'Good'
     expecttxt = []
     errlog = []
-    for e in i.findall('expect'):
+    for e in site.findall('expect'):
         expect = e.text.strip()
         expecttxt.append(expect)
         if expect not in data:
             status = '*ERROR*'
             errlog.append("Didn't see: "+expect)
-    for e in i.findall('reject'):
+    for e in site.findall('reject'):
         reject = e.text.strip()
         expecttxt.append('NOT '+reject)
         if reject in data:
@@ -98,27 +81,45 @@ for i in chklist.findall('site'):
             errlog.append('Saw: '+reject)
     
     expecttxt = ' and '.join(expecttxt)
-    tr = SUB(sitelist, 'tr')
-    
-    SUB(SUB(tr, 'td'), 'a', href = i.get('href'),
-        title = expecttxt).text = i.get('name')
-    #D sys.stderr.write(i.get('name')+'\n')
-    
-    td = SUB(tr, 'td')
-    td.text = status
-    if status != 'Good': td.set('style', 'background:pink')
 
-    SUB(tr, 'td').text = '%3.2f' % elapsed
+    url = cgi.escape(site.get('href'))
+    name = site.get('name')
+    colour = '' if status == 'Good' else ' style="background:pink"'
+    
+    emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
 
     if errlog:
         errlog = '\n'.join(errlog)
-        td = SUB(SUB(sitelist, 'tr'), 'td', colspan = '2')
-        pre = SUB(td, 'pre')
-        pre.text = errlog
+        emit('<tr><td colspan="3"><pre>%s</pre></td></tr>' % errlog)
 
-server = smtplib.SMTP('tyr.nrri.umn.edu')
-server.set_debuglevel(1)
-server.sendmail('tbrown@nrri.umn.edu', 'tbrown@nrri.umn.edu', 'Subject: test 2\n\nbad bews')
-server.quit()
+        if 'email' in mode:
+
+            worried = set(chklist.findall('email')).union(
+                site.findall('email'))
+            for worrier in worried:
+                errmail.setdefault(worrier.text, '')
+                errmail[worrier.text] += ('Error on %s\n%s\n%s\n'
+                    % (name, url, errlog))
+
+emit(templatebot % {'updated': timestamp})
+
+if 'email' in mode and errmail:
     
-etree.ElementTree(page).write(sys.stdout)
+    import smtplib  # avoid if possible, slow to init?
+
+    url = chklist.findall('url')
+    if url:
+        url = url[0].text
+    else:
+        url = 'http://%s%s' % (os.environ['HTTP_HOST'],
+            os.environ['REQUEST_URI'].replace('&mode=email',''))
+
+    server = smtplib.SMTP('tyr.nrri.umn.edu')
+    server.set_debuglevel(1)
+    for k, v in errmail.iteritems():
+        msg = '''From: SiteMon\nSubject: SiteMon: error on monitored web site\n\n
+At %s the following error reports were generated:\n\n%s
+See %s for more information.
+''' % (timestamp, v, url)
+        server.sendmail('tbrown@nrri.umn.edu', k, msg)
+    server.quit()
