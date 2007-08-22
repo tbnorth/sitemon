@@ -8,6 +8,7 @@
 <sites>
   <email>tbrown@nrri.umn.edu</email>
   <url>http://gisdata.nrri.umn.edu/status</url>
+  <saveddata>sitemon.shelf</saveddata>
   <site name='Geissler landuse application generator'
 	href='http://gisdata.nrri.umn.edu/duluthtwpstormrpt/parc.py?pin=315-0020-02520&amp;submit=Generate+my+application'>
     <email>gsjerven@nrri.umn.edu</email>
@@ -39,8 +40,18 @@
 	href='https://glei.nrri.umn.edu/gleidb/gdb_main.php'>
     <expect>GLEI database main menu</expect>
   </site>
-  <site name='EaGLe intranet'
-	href='http://eagle.nrri.umn.edu/pubdefault.htm'>
+  <site name='EaGLe intranet' href='http://eagle.nrri.umn.edu/pubdefault.htm'>
     <expect>Great Lakes (EaGLe) Coastal</expect>
+  </site>
+  <site name='Duluth township IMS'
+	href='http://gisdata.nrri.umn.edu/website/duluthtwpsims/MapFrame.htm'>
+    <email>gsjerven@nrri.umn.edu</email>
+    <expect>START of Code to Add OGC</expect>
+  </site>
+  <site name='WOW' href='http://waterontheweb.org/'>
+    <expect>Geographic Information System Tools</expect>
+  </site>
+  <site name='Duluth streams' href='http://duluthstreams.org/'>
+    <expect>Great Lakes Information Network</expect>
   </site>
 </sites>

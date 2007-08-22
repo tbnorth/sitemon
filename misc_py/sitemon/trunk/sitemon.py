@@ -49,11 +49,19 @@ mode = form.getfirst('mode') or 'unspecified'
 if not conf: conf = sys.argv[1]
 chklist = etree.parse(conf)
 
+saved = None
+if (chklist.find('saveddata') != None
+    and chklist.find('saveddata').text.strip()):
+    import shelve
+    saved = shelve.open(chklist.find('saveddata').text)
+
 U, P = 'nrri\\tbrown', 'MtZer0Here'
 h = httplib2.Http(".cache")
 h.add_credentials(U, P)
 
 errmail = {}  # email to whom it may consern
+# keys are email addresses, values are [msg, sites] where the
+# sites is a set of affected site names
 
 timestamp = time.asctime()
 
@@ -97,14 +105,15 @@ for site in chklist.findall('site'):
             worried = set(chklist.findall('email')).union(
                 site.findall('email'))
             for worrier in worried:
-                errmail.setdefault(worrier.text, '')
-                errmail[worrier.text] += ('Error on %s\n%s\n%s\n'
+                errmail.setdefault(worrier.text, ['', set([])])
+                errmail[worrier.text][0] += ('Error on %s\n%s\n%s\n'
                     % (name, url, errlog))
-
-emit(templatebot % {'updated': timestamp})
+                errmail[worrier.text][1].add(name)
 
 if 'email' in mode and errmail:
     
+    emit('<div>Checking email</div>')
+
     import smtplib  # avoid if possible, slow to init?
 
     url = chklist.findall('url')
@@ -116,10 +125,42 @@ if 'email' in mode and errmail:
 
     server = smtplib.SMTP('tyr.nrri.umn.edu')
     server.set_debuglevel(1)
-    for k, v in errmail.iteritems():
-        msg = '''From: SiteMon\nSubject: SiteMon: error on monitored web site\n\n
-At %s the following error reports were generated:\n\n%s
+    
+    for addr, v in errmail.iteritems():
+        emit('<div>Checking %s</div>' % addr)
+        msg, sites = v
+        emit('<div>Checking %s</div>' % str(sites))
+        doEmail = True
+        if saved != None:  # then check when addr was last emailed about sites
+            doEmail = False
+            now = time.time()
+            for site in sites:  # must find one not sent in 4hrs
+                key = '%s:%s' % (addr, site)
+                emit('<div>Checking %s</div>' % key)
+                lastmail = 0
+                if saved.has_key(key):
+                    lastmail = saved[key]
+                if now - lastmail > 4*3600: doEmail = True
+            if doEmail:
+                for site in sites:
+                    saved[key] = now
+
+        if doEmail:
+
+            msg = '''From: SiteMon
+Subject: SiteMon: error on monitored web site
+
+At %s the following error reports were generated:
+
+%s
+
 See %s for more information.
-''' % (timestamp, v, url)
-        server.sendmail('tbrown@nrri.umn.edu', k, msg)
+
+Errors on the above sites will not be sent again for four hours.
+''' % (timestamp, msg, url)
+            
+            server.sendmail('tbrown@nrri.umn.edu', addr, msg)
+            
     server.quit()
+
+emit(templatebot % {'updated': timestamp})
