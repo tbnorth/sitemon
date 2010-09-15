@@ -10,9 +10,11 @@
 import sys, os
 import cgi
 import cgitb; cgitb.enable()
-import httplib2
+# import httplib2
 import time
 import xml.etree.ElementTree as etree 
+import socket
+import urllib2
 
 templatetop = """<html lang="en"><head><title>SiteMon website monitor</title>
 <style type="text/css" >
@@ -55,9 +57,41 @@ if (chklist.find('saveddata') != None
     import shelve
     saved = shelve.open(chklist.find('saveddata').text)
 
-U, P = 'nrri\\tbrown', 'MtZer0Here'
-h = httplib2.Http(".cache")
-h.add_credentials(U, P)
+class HTTPPasswordMgrWithFolderSpecificity(object):
+    """urls like gisdata.nrri.umn.edu/LesterRiver don't seem to work
+    in standard classes, and gisdata.nrri.umn.edu is too general"""
+    def add_password(self, x0, x1, x2, x3):
+        # needed, even though it's not used
+        pass
+
+    def find_user_password(self, realm, authuri):
+        if 'LesterRiver' in authuri:
+            return ('LR1', 'Superior')
+        if 'MNClimate' in authuri:
+            return ('TerryBrown', 'P1ckyW1k1')
+	return (None,None)
+
+class chatty(urllib2.HTTPPasswordMgrWithDefaultRealm):
+
+    def find_user_password(self, realm, authuri):
+        global errlog
+	errlog.append(realm + ' ' + authuri)
+	return urllib2.HTTPPasswordMgr.find_user_password(self, realm, authuri)
+ 
+
+# h = httplib2.Http(".cache")
+# pwm = urllib2.HTTPPasswordMgrWithDefaultRealm()
+# pwm = chatty()
+# pwm.add_password(None, 'gisdata.nrri.umn.edu', 
+#                  'LR1', 'Superior')
+pwm = HTTPPasswordMgrWithFolderSpecificity()
+h = urllib2.build_opener(
+    urllib2.HTTPBasicAuthHandler(pwm)
+)
+# h.add_credentials('LR1', 'Superior', 'LesterRiver')
+# U, P = 'nrri\\tbrown', 'R0ckyMtn'
+# U, P = 'TerryBrown', 'w1k1'
+# h.add_credentials(U, P)
 
 errmail = {}  # email to whom it may consern
 # keys are email addresses, values are [msg, sites] where the
@@ -69,7 +103,10 @@ for site in chklist.findall('site'):
 
     # try to retrieve
     start = time.time()
-    resp, data = h.request(site.get('href'), "GET")
+    try:
+        data = h.open(site.get('href')).read()
+    except (urllib2.HTTPError, socket.error, urllib2.URLError):
+        data = ''
     elapsed = time.time() - start
     # what to look for
     status = 'Good'
@@ -95,6 +132,14 @@ for site in chklist.findall('site'):
     colour = '' if status == 'Good' else ' style="background:pink"'
     
     emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
+
+    logurl = 'http://131.212.122.222:8111/log/%s/status/%s/WEBSITE: %s' % (
+         name.replace(' ','')[:10], ('OK' if status == 'Good' else 'FAIL'),
+         name)
+    logurl = logurl.replace(' ','%20')
+    urllib2.urlopen(logurl)
+    #emit('''<tr><td>%s %s</td></tr>''' % (logurl, 
+    #    urllib2.urlopen(logurl).read()))
 
     if errlog:
         errlog = '\n'.join(errlog)
