@@ -12,7 +12,8 @@ import cgi
 import cgitb; cgitb.enable()
 # import httplib2
 import time
-import xml.etree.ElementTree as etree 
+import xml.etree.ElementTree as etree
+from xml.sax.saxutils import escape
 import socket
 import urllib2
 
@@ -69,15 +70,15 @@ class HTTPPasswordMgrWithFolderSpecificity(object):
             return ('LR1', 'Superior')
         if 'MNClimate' in authuri:
             return ('TerryBrown', 'P1ckyW1k1')
-	return (None,None)
+        return (None,None)
 
 class chatty(urllib2.HTTPPasswordMgrWithDefaultRealm):
 
     def find_user_password(self, realm, authuri):
         global errlog
-	errlog.append(realm + ' ' + authuri)
-	return urllib2.HTTPPasswordMgr.find_user_password(self, realm, authuri)
- 
+        errlog.append(realm + ' ' + authuri)
+        return urllib2.HTTPPasswordMgr.find_user_password(self, realm, authuri)
+
 
 # h = httplib2.Http(".cache")
 # pwm = urllib2.HTTPPasswordMgrWithDefaultRealm()
@@ -101,36 +102,45 @@ timestamp = time.asctime()
 
 for site in chklist.findall('site'):
 
+    expecttxt = []
+    errlog = []
+
     # try to retrieve
     start = time.time()
     try:
-        data = h.open(site.get('href')).read()
+        post = site.findall('post')
+        if post:
+            post = post[0]
+            data = h.open(site.get('href'), post.text).read()
+        else:
+            data = h.open(site.get('href')).read()
     except (urllib2.HTTPError, socket.error, urllib2.URLError):
         data = ''
     elapsed = time.time() - start
     # what to look for
     status = 'Good'
-    expecttxt = []
-    errlog = []
+
     for e in site.findall('expect'):
         expect = e.text.strip()
         expecttxt.append(expect)
         if expect not in data:
             status = '*ERROR*'
             errlog.append("Didn't see: "+expect)
+            if data:
+                errlog.append('Got: %s...'%(data[:100]))
     for e in site.findall('reject'):
         reject = e.text.strip()
         expecttxt.append('NOT '+reject)
         if reject in data:
             status = '*ERROR*'
             errlog.append('Saw: '+reject)
-    
+
     expecttxt = ' and '.join(expecttxt)
 
     url = cgi.escape(site.get('href'))
     name = site.get('name')
     colour = '' if status == 'Good' else ' style="background:pink"'
-    
+
     emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
 
     logurl = 'http://131.212.122.222:8111/log/%s/status/%s/WEBSITE: %s' % (
@@ -142,7 +152,7 @@ for site in chklist.findall('site'):
     #    urllib2.urlopen(logurl).read()))
 
     if errlog:
-        errlog = '\n'.join(errlog)
+        errlog = escape('\n'.join(errlog))
         emit('<tr><td colspan="3"><pre>%s</pre></td></tr>' % errlog)
 
         if 'email' in mode:
@@ -156,7 +166,7 @@ for site in chklist.findall('site'):
                 errmail[worrier.text][1].add(name)
 
 if 'email' in mode and errmail:
-    
+
     emit('<div>Checking email</div>')
 
     import smtplib  # avoid if possible, slow to init?
@@ -170,12 +180,12 @@ if 'email' in mode and errmail:
 
     server = smtplib.SMTP('tyr.nrri.umn.edu')
     server.set_debuglevel(1)
-    
+
     for addr, v in errmail.iteritems():
         emit('<div>Checking %s</div>' % addr)
         msg, sites = v
         emit('<div>Checking %s</div>' % str(sites))
-        doEmail = True
+        doEmail = Trueauto
         if saved != None:  # then check when addr was last emailed about sites
             doEmail = False
             now = time.time()
@@ -204,9 +214,9 @@ See %s for more information.
 
 Errors on the above sites will not be sent again for four hours.
 ''' % (timestamp, msg, url)
-            
+
             server.sendmail('tbrown@nrri.umn.edu', addr, msg)
-            
+
     server.quit()
 
 emit(templatebot % {'updated': timestamp})
