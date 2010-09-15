@@ -54,4 +54,8 @@
   <site name='Duluth streams' href='http://duluthstreams.org/'>
     <expect>Great Lakes Information Network</expect>
   </site>
+  <site name="Terry Brown's homepage"
+	href="http://beaver.nrri.umn.edu/~tbrown/">
+    <expect>Terry Brown's homepage</expect>
+  </site>
 </sites>

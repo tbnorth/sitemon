@@ -143,6 +143,7 @@ if 'email' in mode and errmail:
                 if now - lastmail > 4*3600: doEmail = True
             if doEmail:
                 for site in sites:
+                    key = '%s:%s' % (addr, site)
                     saved[key] = now
 
         if doEmail:
