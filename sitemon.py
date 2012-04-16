@@ -70,6 +70,8 @@ class HTTPPasswordMgrWithFolderSpecificity(object):
             return ('LR1', 'Superior')
         if 'MNClimate' in authuri:
             return ('TerryBrown', 'P1ckyW1k1')
+        if 'nrgisl' in authuri:
+            return ('TerryBrown', 'P1ckyW1k1')
         return (None,None)
 
 class chatty(urllib2.HTTPPasswordMgrWithDefaultRealm):
@@ -143,7 +145,7 @@ for site in chklist.findall('site'):
 
     emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
 
-    logurl = 'http://131.212.122.222:8111/log/%s/status/%s/WEBSITE: %s' % (
+    logurl = 'http://beaver.nrri.umn.edu:8111/log/%s/status/%s/WEBSITE: %s' % (
          name.replace(' ','')[:10], ('OK' if status == 'Good' else 'FAIL'),
          name)
     logurl = logurl.replace(' ','%20')
