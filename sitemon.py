@@ -16,6 +16,8 @@ import xml.etree.ElementTree as etree
 from xml.sax.saxutils import escape
 import socket
 import urllib2
+import threading
+import Queue
 
 templatetop = """<html lang="en"><head><title>SiteMon website monitor</title>
 <style type="text/css" >
@@ -49,6 +51,8 @@ emit(templatetop % {'updated': time.asctime()})
 form = cgi.FieldStorage()
 conf = form.getfirst('conf')
 mode = form.getfirst('mode') or 'unspecified'
+no_log = form.getfirst('no_log') or False
+
 if not conf: conf = sys.argv[1]
 chklist = etree.parse(conf)
 
@@ -102,70 +106,111 @@ errmail = {}  # email to whom it may consern
 
 timestamp = time.asctime()
 
+class CheckSite(threading.Thread):
+    
+    def __init__(self, *args, **kwargs):
+        self.queue = kwargs['queue']
+        del kwargs['queue']
+        threading.Thread.__init__(self, *args, **kwargs)
+    def run(self):
+        
+        while True:
+            try:
+                site = self.queue.get(block=False)
+            except Queue.Empty:
+                sys.stderr.write("%s %s thread done\n"%(time.strftime("%M:%S"), self.name))
+                return
+
+            sys.stderr.write("%s %s Got %s\n"%
+                (time.strftime("%M:%S"), self.name, site.get('href')))
+
+            expecttxt = []
+            errlog = []
+        
+            # try to retrieve
+            start = time.time()
+            try:
+                post = site.findall('post')
+                if post:
+                    post = post[0]
+                    data = h.open(site.get('href'), post.text).read()
+                else:
+                    data = h.open(site.get('href')).read()
+            except (urllib2.HTTPError, socket.error, urllib2.URLError):
+                data = ''
+            elapsed = time.time() - start
+            # what to look for
+            status = 'Good'
+            
+            sys.stderr.write("%s %s Loaded %s\n"%
+                (time.strftime("%M:%S"), self.name, site.get('href')))
+        
+            for e in site.findall('expect'):
+                expect = e.text.strip()
+                expecttxt.append(expect)
+                if expect not in data:
+                    status = '*ERROR*'
+                    errlog.append("Didn't see: "+expect)
+                    if data:
+                        errlog.append('Got: %s...'%(data[:100]))
+            for e in site.findall('reject'):
+                reject = e.text.strip()
+                expecttxt.append('NOT '+reject)
+                if reject in data:
+                    status = '*ERROR*'
+                    errlog.append('Saw: '+reject)
+        
+            expecttxt = ' and '.join(expecttxt)
+        
+            url = cgi.escape(site.get('href'))
+            name = site.get('name')
+            colour = '' if status == 'Good' else ' style="background:pink"'
+        
+            emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
+        
+            logurl = 'http://beaver.nrri.umn.edu:8111/log/%s/status/%s/WEBSITE: %s' % (
+                 name.replace(' ','')[:10], ('OK' if status == 'Good' else 'FAIL'),
+                 name)
+            logurl = logurl.replace(' ','%20')
+            sys.stderr.write("%s %s Logging %s\n"%
+                (time.strftime("%M:%S"), self.name, site.get('href')))
+            if not no_log:
+                urllib2.urlopen(logurl)
+            sys.stderr.write("%s %s Logged %s\n"%
+                (time.strftime("%M:%S"), self.name, site.get('href')))
+        
+            #emit('''<tr><td>%s %s</td></tr>''' % (logurl, 
+            #    urllib2.urlopen(logurl).read()))
+        
+            if errlog:
+                errlog = escape('\n'.join(errlog))
+                emit('<tr><td colspan="3"><pre>%s</pre></td></tr>' % errlog)
+        
+                if 'email' in mode:
+        
+                    worried = set(chklist.findall('email')).union(
+                        site.findall('email'))
+                    for worrier in worried:
+                        errmail.setdefault(worrier.text, ['', set([])])
+                        errmail[worrier.text][0] += ('Error on %s\n%s\n%s\n'
+                            % (name, url, errlog))
+                        errmail[worrier.text][1].add(name)    
+        
+            self.queue.task_done()
+
+site_queue = Queue.Queue()
+
 for site in chklist.findall('site'):
 
-    expecttxt = []
-    errlog = []
-
-    # try to retrieve
-    start = time.time()
-    try:
-        post = site.findall('post')
-        if post:
-            post = post[0]
-            data = h.open(site.get('href'), post.text).read()
-        else:
-            data = h.open(site.get('href')).read()
-    except (urllib2.HTTPError, socket.error, urllib2.URLError):
-        data = ''
-    elapsed = time.time() - start
-    # what to look for
-    status = 'Good'
-
-    for e in site.findall('expect'):
-        expect = e.text.strip()
-        expecttxt.append(expect)
-        if expect not in data:
-            status = '*ERROR*'
-            errlog.append("Didn't see: "+expect)
-            if data:
-                errlog.append('Got: %s...'%(data[:100]))
-    for e in site.findall('reject'):
-        reject = e.text.strip()
-        expecttxt.append('NOT '+reject)
-        if reject in data:
-            status = '*ERROR*'
-            errlog.append('Saw: '+reject)
-
-    expecttxt = ' and '.join(expecttxt)
-
-    url = cgi.escape(site.get('href'))
-    name = site.get('name')
-    colour = '' if status == 'Good' else ' style="background:pink"'
-
-    emit('''<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>''' % locals())
-
-    logurl = 'http://beaver.nrri.umn.edu:8111/log/%s/status/%s/WEBSITE: %s' % (
-         name.replace(' ','')[:10], ('OK' if status == 'Good' else 'FAIL'),
-         name)
-    logurl = logurl.replace(' ','%20')
-    urllib2.urlopen(logurl)
-    #emit('''<tr><td>%s %s</td></tr>''' % (logurl, 
-    #    urllib2.urlopen(logurl).read()))
-
-    if errlog:
-        errlog = escape('\n'.join(errlog))
-        emit('<tr><td colspan="3"><pre>%s</pre></td></tr>' % errlog)
-
-        if 'email' in mode:
-
-            worried = set(chklist.findall('email')).union(
-                site.findall('email'))
-            for worrier in worried:
-                errmail.setdefault(worrier.text, ['', set([])])
-                errmail[worrier.text][0] += ('Error on %s\n%s\n%s\n'
-                    % (name, url, errlog))
-                errmail[worrier.text][1].add(name)
+    site_queue.put(site, block=False)
+    
+for n in range(min(len(chklist.findall('site')), 15)):
+    
+    runner = CheckSite(queue=site_queue)
+    runner.name = str(n)
+    runner.start()
+    
+site_queue.join()
 
 if 'email' in mode and errmail:
 
