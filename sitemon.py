@@ -8,6 +8,7 @@
 # Created: Mon Aug 20 2007
 
 import cgi
+import html
 import cgitb
 import os
 import sys
@@ -67,7 +68,7 @@ if not conf:
 chklist = etree.parse(conf)
 
 saved = None
-if chklist.find("saveddata") != None and chklist.find("saveddata").text.strip():
+if chklist.find("saveddata") is not None and chklist.find("saveddata").text.strip():
     import shelve
 
     saved = shelve.open(chklist.find("saveddata").text)
@@ -147,7 +148,7 @@ class CheckSite(threading.Thread):
                 post = site.findall("post")
                 if post:
                     post = post[0]
-                    data = h.open(site.get("href"), post.text).read()
+                    data = h.open(site.get("href"), post.text.encode("utf8")).read()
                 else:
                     data = h.open(site.get("href")).read()
             except (urllib.error.HTTPError, socket.error, urllib.error.URLError):
@@ -164,7 +165,7 @@ class CheckSite(threading.Thread):
             for e in site.findall("expect"):
                 expect = e.text.strip()
                 expecttxt.append(expect)
-                if expect not in data:
+                if expect.encode("utf8") not in data:
                     status = "*ERROR*"
                     errlog.append("Didn't see: " + expect)
                     if data:
@@ -178,12 +179,13 @@ class CheckSite(threading.Thread):
 
             expecttxt = " and ".join(expecttxt)
 
-            url = cgi.escape(site.get("href"))
+            url = html.escape(site.get("href"))
             name = site.get("name")
             colour = "" if status == "Good" else ' style="background:pink"'
 
             emit(
-                """<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td><td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>"""
+                """<tr><td><a href="%(url)s" title="%(expecttxt)s">%(name)s</a></td>"""
+                """<td%(colour)s>%(status)s</td><td>%(elapsed)3.2f</td></tr>"""
                 % locals()
             )
 
@@ -262,8 +264,8 @@ if "email" in mode and errmail:
         emit("<div>Checking %s</div>" % addr)
         msg, sites = v
         emit("<div>Checking %s</div>" % str(sites))
-        doEmail = Trueauto
-        if saved != None:  # then check when addr was last emailed about sites
+        doEmail = True
+        if saved is not None:  # then check when addr was last emailed about sites
             doEmail = False
             now = time.time()
             for site in sites:  # must find one not sent in 4hrs
