@@ -107,7 +107,7 @@ errmail = {}  # email to whom it may consern
 timestamp = time.asctime()
 
 class CheckSite(threading.Thread):
-    
+
     def __init__(self, *args, **kwargs):
         self.queue = kwargs['queue']
         del kwargs['queue']
@@ -175,7 +175,7 @@ class CheckSite(threading.Thread):
             sys.stderr.write("%s %s Logging %s\n"%
                 (time.strftime("%M:%S"), self.name, site.get('href')))
             if not no_log:
-                urllib2.urlopen(logurl)
+                urllib2.urlopen(logurl, None, 300)
             sys.stderr.write("%s %s Logged %s\n"%
                 (time.strftime("%M:%S"), self.name, site.get('href')))
         
