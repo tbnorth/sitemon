@@ -15,9 +15,9 @@ import time
 import xml.etree.ElementTree as etree
 from xml.sax.saxutils import escape
 import socket
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import threading
-import Queue
+import queue
 
 templatetop = """<html lang="en"><head><title>SiteMon website monitor</title>
 <style type="text/css" >
@@ -78,12 +78,12 @@ class HTTPPasswordMgrWithFolderSpecificity(object):
             return ('TerryBrown', 'P1ckyW1k1')
         return (None,None)
 
-class chatty(urllib2.HTTPPasswordMgrWithDefaultRealm):
+class chatty(urllib.request.HTTPPasswordMgrWithDefaultRealm):
 
     def find_user_password(self, realm, authuri):
         global errlog
         errlog.append(realm + ' ' + authuri)
-        return urllib2.HTTPPasswordMgr.find_user_password(self, realm, authuri)
+        return urllib.request.HTTPPasswordMgr.find_user_password(self, realm, authuri)
 
 
 # h = httplib2.Http(".cache")
@@ -92,8 +92,8 @@ class chatty(urllib2.HTTPPasswordMgrWithDefaultRealm):
 # pwm.add_password(None, 'gisdata.nrri.umn.edu', 
 #                  'LR1', 'Superior')
 pwm = HTTPPasswordMgrWithFolderSpecificity()
-h = urllib2.build_opener(
-    urllib2.HTTPBasicAuthHandler(pwm)
+h = urllib.request.build_opener(
+    urllib.request.HTTPBasicAuthHandler(pwm)
 )
 # h.add_credentials('LR1', 'Superior', 'LesterRiver')
 # U, P = 'nrri\\tbrown', 'R0ckyMtn'
@@ -117,7 +117,7 @@ class CheckSite(threading.Thread):
         while True:
             try:
                 site = self.queue.get(block=False)
-            except Queue.Empty:
+            except queue.Empty:
                 sys.stderr.write("%s %s thread done\n"%(time.strftime("%M:%S"), self.name))
                 return
 
@@ -136,7 +136,7 @@ class CheckSite(threading.Thread):
                     data = h.open(site.get('href'), post.text).read()
                 else:
                     data = h.open(site.get('href')).read()
-            except (urllib2.HTTPError, socket.error, urllib2.URLError):
+            except (urllib.error.HTTPError, socket.error, urllib.error.URLError):
                 data = ''
             elapsed = time.time() - start
             # what to look for
@@ -175,7 +175,7 @@ class CheckSite(threading.Thread):
             sys.stderr.write("%s %s Logging %s\n"%
                 (time.strftime("%M:%S"), self.name, site.get('href')))
             if not no_log:
-                urllib2.urlopen(logurl, None, 300)
+                urllib.request.urlopen(logurl, None, 300)
             sys.stderr.write("%s %s Logged %s\n"%
                 (time.strftime("%M:%S"), self.name, site.get('href')))
         
@@ -198,7 +198,7 @@ class CheckSite(threading.Thread):
         
             self.queue.task_done()
 
-site_queue = Queue.Queue()
+site_queue = queue.Queue()
 
 for site in chklist.findall('site'):
 
@@ -228,7 +228,7 @@ if 'email' in mode and errmail:
     server = smtplib.SMTP('tyr.nrri.umn.edu')
     server.set_debuglevel(1)
 
-    for addr, v in errmail.iteritems():
+    for addr, v in errmail.items():
         emit('<div>Checking %s</div>' % addr)
         msg, sites = v
         emit('<div>Checking %s</div>' % str(sites))
@@ -240,7 +240,7 @@ if 'email' in mode and errmail:
                 key = '%s:%s' % (addr, site)
                 emit('<div>Checking %s</div>' % key)
                 lastmail = 0
-                if saved.has_key(key):
+                if key in saved:
                     lastmail = saved[key]
                 if now - lastmail > 4*3600: doEmail = True
             if doEmail:
