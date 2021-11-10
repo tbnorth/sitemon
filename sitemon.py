@@ -1,29 +1,23 @@
-#!/usr/bin/python
-
 """
+Author: Terry Brown
+Created: Mon Aug 20 2007
 """
 
-# sitemon.py $Id$
-# Author: Terry Brown
-# Created: Mon Aug 20 2007
-
-import cgi
 import html
-import cgitb
 import os
-import sys
-
-cgitb.enable()
 import queue
 import socket
+import sys
 import threading
 # import httplib2
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-import xml.etree.ElementTree as etree
+from pathlib import Path
 from xml.sax.saxutils import escape
+
+import yaml
 
 templatetop = """<html lang="en"><head><title>SiteMon website monitor</title>
 <style type="text/css" >
@@ -58,20 +52,16 @@ emit(
 
 emit(templatetop % {"updated": time.asctime()})
 
-form = cgi.FieldStorage()
-conf = form.getfirst("conf")
-mode = form.getfirst("mode") or "unspecified"
-no_log = form.getfirst("no_log") or False
 
-if not conf:
-    conf = sys.argv[1]
-chklist = etree.parse(conf)
+conf = yaml.safe_load(Path(sys.argv[1]).open())
+mode = conf.get("mode") or "unspecified"
+no_log = conf.get("no_log") or False
 
 saved = None
-if chklist.find("saveddata") is not None and chklist.find("saveddata").text.strip():
+if conf.get("saveddata"):
     import shelve
 
-    saved = shelve.open(chklist.find("saveddata").text)
+    saved = shelve.open(conf["saveddata"])
 
 
 class HTTPPasswordMgrWithFolderSpecificity(object):
@@ -145,10 +135,9 @@ class CheckSite(threading.Thread):
             # try to retrieve
             start = time.time()
             try:
-                post = site.findall("post")
+                post = site.get("post")
                 if post:
-                    post = post[0]
-                    data = h.open(site.get("href"), post.text.encode("utf8")).read()
+                    data = h.open(site.get("href"), post.encode("utf8")).read()
                 else:
                     data = h.open(site.get("href")).read()
             except (urllib.error.HTTPError, socket.error, urllib.error.URLError):
@@ -162,16 +151,22 @@ class CheckSite(threading.Thread):
                 % (time.strftime("%M:%S"), self.name, site.get("href"))
             )
 
-            for e in site.findall("expect"):
-                expect = e.text.strip()
+            expects = site.get("expect", [])
+            if not isinstance(expects, list):
+                expects = [expects]
+            for e in expects:
+                expect = e.strip()
                 expecttxt.append(expect)
                 if expect.encode("utf8") not in data:
                     status = "*ERROR*"
                     errlog.append("Didn't see: " + expect)
                     if data:
                         errlog.append("Got: %s..." % (data[:100]))
-            for e in site.findall("reject"):
-                reject = e.text.strip()
+            rejects = site.get("rejects", [])
+            if not isinstance(rejects, list):
+                rejects = [rejects]
+            for e in rejects:
+                reject = e.strip()
                 expecttxt.append("NOT " + reject)
                 if reject in data:
                     status = "*ERROR*"
@@ -180,7 +175,7 @@ class CheckSite(threading.Thread):
             expecttxt = " and ".join(expecttxt)
 
             url = html.escape(site.get("href"))
-            name = site.get("name")
+            name = site.get("name", site["site_id"])
             colour = "" if status == "Good" else ' style="background:pink"'
 
             emit(
@@ -215,7 +210,7 @@ class CheckSite(threading.Thread):
 
                 if "email" in mode:
 
-                    worried = set(chklist.findall("email")).union(site.findall("email"))
+                    worried = set(conf.get("email", [])).union(site.get("email", []))
                     for worrier in worried:
                         errmail.setdefault(worrier.text, ["", set([])])
                         errmail[worrier.text][0] += "Error on %s\n%s\n%s\n" % (
@@ -230,11 +225,12 @@ class CheckSite(threading.Thread):
 
 site_queue = queue.Queue()
 
-for site in chklist.findall("site"):
+for site_id, site in conf["sites"].items():
+    site["site_id"] = site_id
 
     site_queue.put(site, block=False)
 
-for n in range(min(len(chklist.findall("site")), 15)):
+for n in range(min(len(conf["sites"]), 15)):
 
     runner = CheckSite(queue=site_queue)
     runner.name = str(n)
@@ -248,10 +244,8 @@ if "email" in mode and errmail:
 
     import smtplib  # avoid if possible, slow to init?
 
-    url = chklist.findall("url")
-    if url:
-        url = url[0].text
-    else:
+    url = conf.get("url")
+    if not url:
         url = "http://%s%s" % (
             os.environ["HTTP_HOST"],
             os.environ["REQUEST_URI"].replace("&mode=email", ""),
