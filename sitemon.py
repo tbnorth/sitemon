@@ -184,22 +184,24 @@ class CheckSite(threading.Thread):
                 % locals()
             )
 
-            logurl = "http://beaver.nrri.umn.edu:8111/log/%s/status/%s/WEBSITE: %s" % (
-                name.replace(" ", "")[:10],
-                ("OK" if status == "Good" else "FAIL"),
-                name,
-            )
-            logurl = logurl.replace(" ", "%20")
-            sys.stderr.write(
-                "%s %s Logging %s\n"
-                % (time.strftime("%M:%S"), self.name, site.get("href"))
-            )
-            if not no_log:
-                urllib.request.urlopen(logurl, None, 300)
-            sys.stderr.write(
-                "%s %s Logged %s\n"
-                % (time.strftime("%M:%S"), self.name, site.get("href"))
-            )
+            if conf.get("logging_url"):
+                logurl = "{logto}/log/{site_id}/status/{status}/WEBSITE: {name}".format(
+                    logto=conf["logging_url"],
+                    site_id=site["site_id"],
+                    status=("OK" if status == "Good" else "FAIL"),
+                    name=site.get("name", site["site_id"]),
+                )
+                logurl = logurl.replace(" ", "%20")
+                sys.stderr.write(
+                    "%s %s Logging %s\n"
+                    % (time.strftime("%M:%S"), self.name, site.get("href"))
+                )
+                if not no_log:
+                    urllib.request.urlopen(logurl, None, 300)
+                sys.stderr.write(
+                    "%s %s Logged %s\n"
+                    % (time.strftime("%M:%S"), self.name, site.get("href"))
+                )
 
             # emit('''<tr><td>%s %s</td></tr>''' % (logurl,
             #    urllib2.urlopen(logurl).read()))
