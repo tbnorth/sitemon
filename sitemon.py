@@ -142,6 +142,8 @@ class CheckSite(threading.Thread):
                     data = h.open(site.get("href")).read()
             except (urllib.error.HTTPError, socket.error, urllib.error.URLError):
                 data = ""
+            if isinstance(data, str):
+                data = data.encode("utf8")
             elapsed = time.time() - start
             # what to look for
             status = "Good"
