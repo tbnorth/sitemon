@@ -187,11 +187,15 @@ class CheckSite(threading.Thread):
             )
 
             if conf.get("logging_url"):
-                logurl = "{logto}/log/{site_id}/status/{status}/WEBSITE: {name}".format(
+                logurl = (
+                    "{logto}/log/{site_id}/status/{status}/SITE: {name} "
+                    "in {elapsed:3.1f} secs."
+                ).format(
                     logto=conf["logging_url"],
                     site_id=site["site_id"],
                     status=("OK" if status == "Good" else "FAIL"),
                     name=site.get("name", site["site_id"]),
+                    elapsed=elapsed,
                 )
                 logurl = logurl.replace(" ", "%20")
                 sys.stderr.write(
