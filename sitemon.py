@@ -7,6 +7,7 @@ import html
 import os
 import queue
 import socket
+import ssl
 import sys
 import threading
 # import httplib2
@@ -37,6 +38,10 @@ templatebot = """
 <p>Hover over a site name to see the target text</p>
 </body></html>
 """
+
+ctx = ssl.create_default_context()
+ctx.check_hostname = False
+ctx.verify_mode = ssl.CERT_NONE
 
 
 def emit(txt):
@@ -95,7 +100,9 @@ class chatty(urllib.request.HTTPPasswordMgrWithDefaultRealm):
 # pwm.add_password(None, 'gisdata.nrri.umn.edu',
 #                  'LR1', 'Superior')
 pwm = HTTPPasswordMgrWithFolderSpecificity()
-h = urllib.request.build_opener(urllib.request.HTTPBasicAuthHandler(pwm))
+h = urllib.request.build_opener(
+    urllib.request.HTTPSHandler(context=ctx), urllib.request.HTTPBasicAuthHandler(pwm)
+)
 # h.add_credentials('LR1', 'Superior', 'LesterRiver')
 # U, P = 'nrri\\tbrown', 'R0ckyMtn'
 # U, P = 'TerryBrown', 'w1k1'
