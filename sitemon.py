@@ -42,7 +42,7 @@ templatebot = """
 ctx = ssl.create_default_context()
 ctx.check_hostname = False
 ctx.verify_mode = ssl.CERT_NONE
-
+ctx.options |= 0x4
 
 def emit(txt):
     sys.stdout.write(txt + "\n")
