@@ -43,15 +43,19 @@ async def check_site(
 ) -> None:
     """Check a site."""
     start = time.time()
+    err_type = ""
     try:
         response = await client.get(site["href"], timeout=10.0, follow_redirects=True)
         loggable = response
-    except httpx.RequestError:
+    except httpx.RequestError as e:
+        err_type = "RequestError: " + str(e)
         loggable = httpx.RequestError
     except httpx.TimeoutException:
         loggable = httpx.TimeoutException
+        err_type = "TimeoutException"
     elapsed = time.time() - start
 
+    code = loggable.status_code if isinstance(loggable, httpx.Response) else None
     ok = isinstance(loggable, httpx.Response) and loggable.status_code == HTTP_OK
     if ok:
         ok = site["expect"].encode("utf-8") in response.content
@@ -75,6 +79,8 @@ async def check_site(
     )
     if not ok:
         emit(f"<tr><td colspan='3'>Did not see '{site['expect']}'.</td></tr>")
+        emit(f"<tr><td colspan='3'>HTTP: {code}.</td></tr>")
+        emit(f"<tr><td colspan='3'>err_type: {err_type}.</td></tr>")
     if log_url:
         try:
             url = (
